@@ -1,0 +1,386 @@
+{
+  "name": "Goal Checker",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        2640
+      ],
+      "id": "0b3666fd-908f-4120-83d0-250efe1b1e8e",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-day",
+              "name": "day",
+              "value": "today",
+              "type": "string"
+            },
+            {
+              "id": "cfg-todoist-filter",
+              "name": "todoistFilter",
+              "value": "(today | od | @todo) & !#План",
+              "type": "string"
+            },
+            {
+              "id": "cfg-obsidian-path",
+              "name": "obsidianPath",
+              "value": "/Users/mdmkudryashov/.n8n-files/Цели 2026.md",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1808,
+        2640
+      ],
+      "id": "b0ae455b-430e-42c1-8359-8a08bbbe15d7",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "url": "https://api.todoist.com/api/v1/tasks/filter",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $node['Config'].json.todoistFilter }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2064,
+        2432
+      ],
+      "id": "31df9177-162d-405d-9ad8-74972456a06a",
+      "name": "Get Todoist Tasks",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "Fc0igcqeFdgS6FFo",
+          "name": "Bearer Auth account"
+        },
+        "httpHeaderAuth": {
+          "id": "RZxGvRyvleuhiWCZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.todoist.com/api/v1/tasks/filter",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ '#План & ' + $node['Config'].json.day }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2064,
+        2640
+      ],
+      "id": "0214eb2a-63ad-4f17-9624-57793d9e6027",
+      "name": "Get Plan Tasks",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "Fc0igcqeFdgS6FFo",
+          "name": "Bearer Auth account"
+        },
+        "httpHeaderAuth": {
+          "id": "RZxGvRyvleuhiWCZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $node['Config'].json.obsidianPath }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        2064,
+        2832
+      ],
+      "id": "09b015a3-f7e3-4984-b583-bf1a57d804dd",
+      "name": "Read Obsidian Goals"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all()[0]?.json;\n\nlet tasks = [];\n\nif (Array.isArray(input)) {\n  if (input[0]?.results) {\n    tasks = input[0].results;\n  } else if (input[0]?.content !== undefined) {\n    tasks = input;\n  }\n} else if (input?.results) {\n  tasks = input.results;\n} else if (input?.data) {\n  tasks = input.data;\n}\n\nlet formattedText = '';\n\nif (tasks.length > 0) {\n  formattedText = tasks.map(task => {\n    const name = task.content || 'Без названия';\n    const description = task.description || '';\n    const priority = task.priority || 4;\n    let result = `- ${name}. Приоритет: ${priority}.`;\n    if (description) {\n      const isMultiline = description.includes('\\n');\n      if (isMultiline) {\n        result += `\\n  Описание:\\n  ${description.replace(/\\n/g, '\\n  ')}`;\n      } else {\n        result += `\\n  Описание: ${description}`;\n      }\n    }\n    return result;\n  }).join('\\n');\n} else {\n  formattedText = 'Нет задач на сегодня';\n}\n\nreturn { json: { formattedTasks: formattedText } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        2432
+      ],
+      "id": "a4dff0e3-811c-4cc5-92cc-9ab4b7654269",
+      "name": "Format Todoist Tasks"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all()[0]?.json;\n\nlet tasks = [];\n\nif (Array.isArray(input)) {\n  if (input[0]?.results) {\n    tasks = input[0].results;\n  } else if (input[0]?.content !== undefined) {\n    tasks = input;\n  }\n} else if (input?.results) {\n  tasks = input.results;\n} else if (input?.data) {\n  tasks = input.data;\n}\n\nlet formattedText = '';\n\nif (tasks.length > 0) {\n  // Сортируем по времени начала\n  tasks.sort((a, b) => {\n    const timeA = a.due?.date || '';\n    const timeB = b.due?.date || '';\n    return timeA.localeCompare(timeB);\n  });\n\n  formattedText = tasks.map(task => {\n    const name = task.content || 'Без названия';\n    const dueDate = task.due?.datetime || task.due?.date || '';\n    const hasTime = dueDate.includes('T');\n    const duration = task.duration;\n\n    let startTime = '';\n    let endTime = '';\n\n    if (dueDate && hasTime) {\n      const startDate = new Date(dueDate);\n      startTime = startDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });\n\n      if (duration && duration.amount) {\n        const endDate = new Date(startDate);\n        if (duration.unit === 'minute') {\n          endDate.setMinutes(endDate.getMinutes() + duration.amount);\n        } else if (duration.unit === 'hour') {\n          endDate.setHours(endDate.getHours() + duration.amount);\n        }\n        endTime = endDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });\n      }\n    }\n\n    if (startTime && endTime) {\n      return `${startTime} - ${endTime} | ${name}`;\n    } else if (startTime) {\n      return `${startTime} | ${name}`;\n    } else {\n      return `-- : -- | ${name}`;\n    }\n  }).join('\\n');\n} else {\n  formattedText = 'Нет событий в плане на сегодня';\n}\n\nreturn { json: { formattedTimeline: formattedText } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        2640
+      ],
+      "id": "4268f672-e134-484f-a724-9879769d64d9",
+      "name": "Format Timeline"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.all()[0];\nlet goalsText = 'Не удалось прочитать файл целей';\n\nif (item.binary && item.binary.data) {\n  const binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\n  goalsText = binaryData.toString('utf-8');\n} else if (item.json?.goalsContent) {\n  goalsText = item.json.goalsContent;\n} else if (item.json?.stdout) {\n  goalsText = item.json.stdout;\n}\n\nreturn { json: { formattedGoals: goalsText } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        2832
+      ],
+      "id": "746cc194-69b6-4729-868c-1bb0d6e16e4a",
+      "name": "Format Obsidian Goals"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2592,
+        2544
+      ],
+      "id": "de51abbc-f0b7-49ec-b820-d662791616fd",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2784,
+        2640
+      ],
+      "id": "eee2ec95-7232-4b53-8fc5-962329bec7f4",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nlet todoist = '';\nlet timeline = '';\nlet obsidian = '';\n\nfor (const item of input) {\n  const data = item.json;\n  if (data?.formattedTasks) todoist = data.formattedTasks;\n  if (data?.formattedTimeline) timeline = data.formattedTimeline;\n  if (data?.formattedGoals) obsidian = data.formattedGoals;\n}\n\nconst day = $node['Config'].json.day;\nconst dayLabel = day === 'tomorrow' ? 'на завтра' : 'на сегодня';\n\nconst result = `# Задачи ${dayLabel}:\\n\\n${todoist}\\n\\n# Тайм-блокинг\\n\\n${timeline}\\n\\n# Цели\\n\\n${obsidian}`;\n\nreturn { json: { combinedText: result } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        2640
+      ],
+      "id": "cbf3732d-3a82-4b4c-901a-571c9f180636",
+      "name": "Combine Results"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.todoist.com/api/v1/tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: 'Проверить задачи', labels: [\"todo\"], description: $json.combinedText, due_string: $node['Config'].json.day, priority: 4 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3248,
+        2640
+      ],
+      "id": "24535a64-2148-4011-8f93-583402b56a1f",
+      "name": "Create Todoist Task",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "Fc0igcqeFdgS6FFo",
+          "name": "Bearer Auth account"
+        },
+        "httpHeaderAuth": {
+          "id": "RZxGvRyvleuhiWCZ",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Get Todoist Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Plan Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Obsidian Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Todoist Tasks": {
+      "main": [
+        [
+          {
+            "node": "Format Todoist Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Plan Tasks": {
+      "main": [
+        [
+          {
+            "node": "Format Timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Obsidian Goals": {
+      "main": [
+        [
+          {
+            "node": "Format Obsidian Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Todoist Tasks": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Timeline": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Obsidian Goals": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Combine Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Results": {
+      "main": [
+        [
+          {
+            "node": "Create Todoist Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "86db176a-c0b8-41e7-ae03-d8fcacd549b2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a6c98f07aca84e533615676afb28aa65abe2bd10f46907ed981c31de0fe7bee"
+  },
+  "id": "gyRkBS4suK9r66A6",
+  "tags": []
+}
